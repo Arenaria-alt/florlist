@@ -8,24 +8,26 @@
 <meta name="apple-mobile-web-app-title" content="FlorList">
 <meta name="theme-color" content="#8dc63f">
 <title>FlorList — Arenaria</title>
-<link rel="manifest" href="data:application/manifest+json,{
-  &quot;name&quot;: &quot;FlorList — Arenaria&quot;,
-  &quot;short_name&quot;: &quot;FlorList&quot;,
-  &quot;description&quot;: &quot;Lista florystyczna&quot;,
-  &quot;start_url&quot;: &quot;.&quot;,
-  &quot;display&quot;: &quot;standalone&quot;,
-  &quot;orientation&quot;: &quot;portrait&quot;,
-  &quot;background_color&quot;: &quot;#f7f7f5&quot;,
-  &quot;theme_color&quot;: &quot;#8dc63f&quot;,
-  &quot;icons&quot;: [
-    {
-      &quot;src&quot;: &quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%238dc63f'/><text x='96' y='130' font-size='110' text-anchor='middle'>🌿</text></svg>&quot;,
-      &quot;sizes&quot;: &quot;192x192&quot;,
-      &quot;type&quot;: &quot;image/svg+xml&quot;,
-      &quot;purpose&quot;: &quot;any maskable&quot;
-    }
-  ]
-}">
+<script id="pwa-manifest">
+(function(){
+  const m={
+    name:"FlorList \u2014 Arenaria",
+    short_name:"FlorList",
+    description:"Lista florystyczna",
+    start_url:".",
+    display:"standalone",
+    orientation:"portrait",
+    background_color:"#f7f7f5",
+    theme_color:"#8dc63f",
+    icons:[{src:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",sizes:"192x192",type:"image/png"}]
+  };
+  const blob=new Blob([JSON.stringify(m)],{type:"application/manifest+json"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("link");
+  link.rel="manifest";link.href=url;
+  document.head.appendChild(link);
+})();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,300&family=Lora:ital,wght@0,600;1,400&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -153,6 +155,8 @@ table.t tr:nth-child(odd) td{background:#fff}
 .btn-s{background:none;border:2px solid var(--bd);color:var(--ink3)}
 .btn-teal{background:#2a7a6a;color:#fff}
 .btn-teal:disabled{background:var(--gray);cursor:default;transform:none}
+.btn-mail{background:#3a6abf;color:#fff}
+.btn-mail:disabled{background:var(--gray);cursor:default;transform:none}
 
 /* DB PANEL */
 .dbwrap{padding:14px;flex:1;overflow-y:auto}
@@ -253,6 +257,7 @@ footer{background:#fff;border-top:1px solid var(--bd);padding:8px 14px;display:f
     </label>
     <button class="btn btn-teal" id="exp-all" onclick="doExport('all')" disabled>⬇ Uproszczona</button>
     <button class="btn btn-dk" id="exp-grp" onclick="showExportMenu()" disabled>⬇ Osobne</button>
+    <button class="btn btn-mail" id="exp-mail" onclick="mailList()" disabled>✉ Wyślij CSV</button>
   </div>
 </div>
 
@@ -272,6 +277,7 @@ footer{background:#fff;border-top:1px solid var(--bd);padding:8px 14px;display:f
       <p>Pobierz całą bazę do weryfikacji i uzupełnienia. Kolumny: <code>skr;lac;pl;rodz;grra;grhg;prot;grp</code></p>
       <div class="dbtns">
         <button class="btn btn-g" onclick="exportDB()">⬇ Eksport bazy (CSV)</button>
+        <button class="btn btn-mail" onclick="mailDB()">✉ Wyślij bazę</button>
       </div>
     </div>
     <div class="dcard">
@@ -330,7 +336,6 @@ function loadDB(){
   return BUILTIN;
 }
 let DB = loadDB();
-updateDBStats();
 
 function isB(s){return s.grp==='b'||s.grp==='1';}
 function isL(s){return s.grp==='l'||s.grp==='2';}
@@ -341,6 +346,7 @@ function updateDBStats(){
   document.getElementById('db-b').textContent=DB.filter(isB).length;
   document.getElementById('db-l').textContent=DB.filter(isL).length;
 }
+updateDBStats();
 
 // Jedna wspólna lista — wszystkie gatunki razem
 let allList = JSON.parse(localStorage.getItem('fl_all')||'[]');
@@ -772,6 +778,29 @@ function dl(content,fname,type){
   a.href=url;a.download=fname;a.click();
   URL.revokeObjectURL(url);
 }
+function mailList(){
+  const loc=document.getElementById('loc').value.trim();
+  const aut=document.getElementById('aut').value.trim();
+  const dat=document.getElementById('dat').value||new Date().toISOString().slice(0,10);
+  const sorted=[...allList.filter(isV),...allList.filter(isB),...allList.filter(isL)];
+  const hdr='L.p.;Nazwa polska;Nazwa łacińska;Ochrona;Częstość;Lokalizacja;Data;Autor';
+  const rows=sorted.map((s,i)=>`${i+1};"${s.pl}";"${s.lac}";"${s.prot}";"${s.freq}";"${loc}";"${dat}";"${aut}"`);
+  const csv=[hdr,...rows].join('\n');
+  const subject=encodeURIComponent(`FlorList — lista ${loc||'terenowa'} ${dat}`);
+  const body=encodeURIComponent(`Lista florystyczna (${sorted.length} gat.)\nLokalizacja: ${loc||'—'}\nData: ${dat}\nAutor: ${aut||'—'}\n\n${csv}`);
+  window.location.href=`mailto:?subject=${subject}&body=${body}`;
+}
+
+function mailDB(){
+  const dat=new Date().toISOString().slice(0,10);
+  const hdr='skr;lac;pl;rodz;grra;grhg;prot;grp';
+  const rows=DB.map(s=>`${s.skr};"${s.lac}";"${s.pl}";"${s.rodz||''}";"${s.grra||''}";"${s.grhg||''}";"${s.prot||''}";"${s.grp||'v'}"`);
+  const csv=[hdr,...rows].join('\n');
+  const subject=encodeURIComponent(`FlorList — baza gatunków ${dat}`);
+  const body=encodeURIComponent(`Baza gatunków Arenaria (${DB.length} rekordów)\nEksport: ${dat}\n\n${csv}`);
+  window.location.href=`mailto:?subject=${subject}&body=${body}`;
+}
+
 function save(){
   try{localStorage.setItem('fl_all',JSON.stringify(allList));}catch(e){}
 }
@@ -782,6 +811,7 @@ function updateBadge(){
   const hasAny=t>0;
   document.getElementById('exp-all').disabled=!hasAny;
   document.getElementById('exp-grp').disabled=!hasAny;
+  document.getElementById('exp-mail').disabled=!hasAny;
 }
 function clearList(){
   if(!allList.length)return;
